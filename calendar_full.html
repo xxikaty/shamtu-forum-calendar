@@ -165,7 +165,7 @@ pre.code{
 
   <!-- ШАПКА с HEX-цветом -->
   <div class="header">
-    <div class="brand">Shamtu · Календарь 5×5</div>
+    <div class="brand">♥ champagne ♥</div>
     <div class="tools">
       <span class="status" id="status"> </span>
       <input id="hexInput" type="text" placeholder="#EDF1F3" title="HEX цвет интерфейса"/>
@@ -343,7 +343,11 @@ function renderEditor(){
     const row = document.createElement('div'); row.className='task';
 
     const chk = document.createElement('input'); chk.type='checkbox'; chk.checked=!!ev.done;
-    chk.addEventListener('change', e=> ev.done = e.target.checked);
+    chk.addEventListener('change', e=>{
+  ev.done = e.target.checked;
+  renderLiveCalendar();   // пересобираем календарь сразу после клика
+});
+
 
     const t = document.createElement('input'); t.type='text'; t.placeholder='Событие дня'; t.value=ev.title||'';
     t.addEventListener('input', e=> ev.title = e.target.value);
