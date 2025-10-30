@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Календарь 5×5 — редактор (Firebase, multi-user)</title>
+<style>
+:root{
+  --bg:#f4f2ec; --panel:#faf8f1; --ink:#2b2a29; --muted:#7a7464;
+  --accent:#b59f6b; --accent-2:#a48e5d; --ring:#d7c8a0; --radius:14px;
+  --shadow:0 8px 30px rgba(0,0,0,.08);
+  --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  /* цвета для итогового HTML на форум */
+  --active:#E7F3FA;   /* есть невыполненные задачи */
+  --done:#F1FAE7;     /* все задачи выполнены */
+}
+html,body{height:100%}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.4;}
+.wrapper{max-width:1100px; margin:24px auto; padding:0 16px}
+.header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px}
+.brand{font-family:var(--serif); font-size:20px; font-weight:700}
+.actions{display:flex; gap:8px; flex-wrap:wrap}
+button,.btn{appearance:none; border:1px solid var(--ring); background:linear-gradient(180deg,#fff,#f6f1e3); color:var(--ink); padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; box-shadow:var(--shadow)}
+button:hover,.btn:hover{border-color:var(--accent); transform:translateY(-1px)}
+button.primary{background:linear-gradient(180deg,#c8b07a,#b59f6b); border-color:var(--accent-2); color:#fff}
+button.danger{background:#fff; border-color:#e2c7c7; color:#8a3e3e}
+button.ghost{background:#fff}
+.card{background:var(--panel); border:1px solid var(--ring); border-radius:var(--radius); box-shadow:var(--shadow)}
+.grid{display:grid; grid-template-columns:360px 1fr; gap:16px}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+.editor{padding:16px}
+.field{margin-bottom:12px}
+label{font-size:13px; color:var(--muted); display:block; margin-bottom:6px}
+select,input[type="text"],textarea{width:100%; padding:10px 12px; border:1px solid var(--ring); border-radius:10px; background:#fff; color:var(--ink); font-size:14px}
+.row{display:flex; gap:8px; align-items:center}
+.row input[type="text"]{flex:1}
+.task{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+.task input[type="text"]{flex:1}
+.task .del{min-width:42px}
+hr.sep{border:none; height:1px; background:#e5dcc7; margin:14px 0}
+.preview{padding:16px}
+
+pre.code {
+  background: #1c1b19;
+  color: #e6e1cf;
+  padding: 14px;
+  border-radius: 10px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  border: 1px solid #2a281f;
+
+  /* добавлено */
+  max-height: 400px;        /* ограничивает высоту окна */
+  white-space: pre-wrap;    /* перенос длинных строк */
+  word-break: break-word;   /* не вылезают за границы */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.extra-tools{
+  display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;
+}
+.extra-tools button{
+  background:linear-gradient(180deg,#fff,#f6f1e3);
+  border:1px solid var(--ring);
+  border-radius:8px;
+  padding:8px 12px;
+  cursor:pointer; font-weight:600;
+}
+.extra-tools button:hover{border-color:var(--accent);}
+.live-preview{
+  margin-top:20px;
+  background:#fff;
+  border:1px solid var(--ring);
+  border-radius:12px;
+  padding:16px;
+  box-shadow:var(--shadow);
+}
+.live-preview .calendar{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;
+  max-width:900px;
+  margin:0 auto;
+}
+.live-preview .day{
+  display:flex;align-items:center;justify-content:center;
+  aspect-ratio:1/1;
+  border-radius:10px;
+  border:1px solid #ddd;
+  text-decoration:none;
+  color:#222;
+  font-weight:600;
+}
+
+
+.section-title{margin:22px 0 10px; font-family:var(--serif); color:var(--accent-2); font-weight:700}
+.badge{display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#efe7d1; color:#6e5a2a; border:1px solid var(--ring)}
+.small{font-size:12px; color:var(--muted)}
+.note{font-size:12px; color:#6a6a6a; margin-top:6px}
+.done-line{color:#888}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <div class="brand">Календарь 5×5 · редактор (общий через Firebase)</div>
+    <div class="actions">
+      <button class="primary" id="saveBtn">💾 Сохранить</button>
+      <button class="ghost" id="copyBtn">📋 Скопировать код</button>
+      <button class="ghost" id="downloadBtn"⬇️ Скачать HTML</button>
+      <span class="small" id="status"></span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- РЕДАКТОР -->
+    <div class="card editor">
+      <div class="field">
+        <label for="daySelect">Выбери день</label>
+        <div class="row">
+          <select id="daySelect"></select>
+          <span class="badge" id="taskCount">0 задач</span>
+        </div>
+        <div class="note">Название дня/дата (например: <b>02/11</b>) попадёт в сетку и в заголовок окна.</div>
+      </div>
+
+      <div class="field">
+        <label for="dayTitle">Название дня / дата</label>
+        <input id="dayTitle" type="text" placeholder="напр. 02/11">
+      </div>
+
+      <hr class="sep">
+
+      <div class="field">
+        <label>События и описания (чекбокс — «выполнено»)</label>
+        <div id="tasksBox"></div>
+        <button id="addTaskBtn">+ Добавить задачу</button>
+      </div>
+    </div>
+
+    <!-- ПРЕДПРОСМОТР / КОД -->
+    <div class="card preview">
+      <div class="section-title">Готовый HTML для форума</div>
+      <pre class="code" id="codeOut"><code>Данные ещё не загружены…</code></pre>
+      <div class="small">Этот код автоматически собирается из общих данных Firebase. Вставляй в пост на форуме.</div>
+<!-- нижние кнопки и предпросмотр -->
+<div class="extra-tools">
+  <button id="copyBtnBottom">📋 Копировать код</button>
+  <button id="previewToggle">📅 Показать предпросмотр</button>
+</div>
+<div id="livePreview" class="live-preview" hidden>
+  <div class="section-title">Предпросмотр календаря</div>
+  <div id="calendarView"></div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase (compat CDN для работы локального файла без сборки) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+/* -----------------------------------------------------------
+   1) ВСТАВЬ СВОЙ КОНФИГ НИЖЕ (замени весь объект firebaseConfig)
+   ОБЯЗАТЕЛЬНО добавь databaseURL.
+   ----------------------------------------------------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyAJu-CECLKqonJxdywNFPDOuoZmvBef6Dc",
+  authDomain: "forum-calendar-shamtu.firebaseapp.com",
+  projectId: "forum-calendar-shamtu",
+  storageBucket: "forum-calendar-shamtu.appspot.com",
+  messagingSenderId: "705851712133",
+  appId: "1:705851712133:web:85ae354826eba745cc7fec",
+  measurementId: "G-KMBVC078HL",
+  databaseURL: "https://forum-calendar-shamtu-default-rtdb.firebaseio.com"
+};
+// ----------- инициализация Firebase -----------
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ===== МОДЕЛЬ ДАННЫХ =====
+data = [ { title:"02/11", events:[{title:"",desc:"",done:false}, …] }, … x25 ]
+*/
+const EMPTY_DAY = () => ({ title:"", events: [] });
+const DEFAULT_DATA = Array.from({length:25}, ()=>EMPTY_DAY());
+let data = structuredClone(DEFAULT_DATA);
+let currentDayIndex = 0;
+
+/* ====== УТИЛИТЫ ====== */
+const daySelect = document.getElementById('daySelect');
+const dayTitle  = document.getElementById('dayTitle');
+const tasksBox  = document.getElementById('tasksBox');
+const taskCount = document.getElementById('taskCount');
+const codeOut   = document.getElementById('codeOut');
+const statusEl  = document.getElementById('status');
+
+for(let i=1;i<=25;i++){ daySelect.append(new Option(`День ${i}`, i-1)); }
+daySelect.addEventListener('change', ()=>{
+  currentDayIndex = Number(daySelect.value);
+  renderEditor();
+});
+document.getElementById('addTaskBtn').addEventListener('click', ()=>{
+  data[currentDayIndex].events.push({title:"", desc:"", done:false});
+  renderEditor();
+});
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  // сохраняем только вручную (как ты просила)
+  await db.ref('/calendar').set(data);
+  showStatus('Сохранено в облаке');
+});
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  const text = buildForumHTML();
+  navigator.clipboard.writeText(text).then(()=> showStatus('Код скопирован'));
+});
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  const text = buildForumHTML();
+  const blob = new Blob([text], {type:"text/html;charset=utf-8"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "calendar_for_forum.html";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showStatus('Файл скачан');
+});
+function showStatus(msg){ statusEl.textContent = '· ' + msg; setTimeout(()=>statusEl.textContent='',1800); }
+
+/* ====== РЕНДЕР РЕДАКТОРА ====== */
+function renderEditor(){
+  // заголовок дня
+  dayTitle.value = data[currentDayIndex].title || "";
+  dayTitle.oninput = (e)=>{ data[currentDayIndex].title = e.target.value; };
+
+  // список задач
+  tasksBox.innerHTML = '';
+  const events = data[currentDayIndex].events;
+  if(events.length===0){ events.push({title:"",desc:"",done:false}); }
+
+  events.forEach((ev, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'task';
+
+    const chk = document.createElement('input');
+    chk.type='checkbox'; chk.checked = !!ev.done;
+    chk.addEventListener('change', e=>{ ev.done = e.target.checked; });
+
+    const t = document.createElement('input');
+    t.type='text'; t.placeholder='Событие дня'; t.value = ev.title||'';
+    t.addEventListener('input', e=>{ ev.title = e.target.value; });
+
+    const d = document.createElement('input');
+    d.type='text'; d.placeholder='Описание или задачи дня'; d.value = ev.desc||'';
+    d.addEventListener('input', e=>{ ev.desc = e.target.value; });
+
+    const del = document.createElement('button');
+    del.className='del danger'; del.textContent='✕';
+    del.title='Удалить задачу';
+    del.addEventListener('click', ()=>{
+      data[currentDayIndex].events.splice(idx,1);
+      renderEditor();
+    });
+
+    row.append(chk, t, d, del);
+    tasksBox.appendChild(row);
+  });
+
+  const n = events.length;
+  taskCount.textContent = `${n} ${decl(n,'задача','задачи','задач')}`;
+
+  // Обновим предпросмотр кода локально (без сохранения)
+  buildForumHTML();
+}
+function decl(n,one,few,many){const m10=n%10,m100=n%100;return m10===1&&m100!==11?one:(m10>=2&&m10<=4&&(m100<10||m100>=20)?few:many);}
+
+/* ====== СБОРКА ГОТОВОГО HTML ДЛЯ ФОРУМА ======
+   — 5×5 сетка ссылок (текст — title или номер)
+   — 25 всплывающих окон
+   — фон ячеек: #F1FAE7 если все done, иначе #E7F3FA
+   — выполненные задачи: галочка + серый текст
+*/
+
+
+
+
+
+
+
+function buildForumHTML(){
+  // защита: если вдруг убрали escapeHTML — добавим простой вариант
+  if (typeof escapeHTML !== 'function') {
+    window.escapeHTML = s => String(s).replace(/[&<>"']/g, m => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]
+    ));
+  }
+
+  // ── Сетка 5×5 ───────────────────────────────────────────────
+  const grid = [];
+  for (let i = 0; i < 25; i++) {
+    const label   = (data[i].title || '').trim() || String(i + 1);
+    const evs     = data[i].events || [];
+    const allDone = evs.length > 0 ? evs.every(e => !!e.done) : false;
+    const bg      = allDone ? '#F1FAE7' : '#E7F3FA';
+
+    grid.push(
+      `<a href="#day-${i+1}" class="day" ` +
+      `style="display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;` +
+      `background:${bg};border-radius:12px;border:1px solid #e3e3e3;` +
+      `text-decoration:none;color:#222;font-weight:700;">${escapeHTML(label)}</a>`
+    );
+  }
+
+  // ── Всплывающие окна ────────────────────────────────────────
+  const popups = [];
+  for (let i = 0; i < 25; i++) {
+    const human   = i + 1;
+    const title   = (data[i].title || '').trim();
+    const caption = title ? `События ${escapeHTML(title)}` : `События дня ${human}`;
+    const evs     = data[i].events || [];
+
+    // Заголовок первым блоком (как просила)
+    let bodyHTML =
+      `<div class="event" style="background:#f5f2ed;padding:6px 10px;` +
+      `border-radius:6px;margin-bottom:8px;"><strong>${caption}</strong></div>`;
+
+    if (evs.length) {
+      bodyHTML += evs.map(e => {
+        const t = escapeHTML(e.title || 'Без названия');
+        const d = escapeHTML(e.desc  || '');
+        return e.done
+          ? `<div class="event"><span style="color:#888">✓ <strong>${t}</strong>${d ? ` — ${d}` : ''}</span></div>`
+          : `<div class="event"><strong>${t}</strong>${d ? ` — ${d}` : ''}</div>`;
+      }).join('\n');
+    } else {
+      bodyHTML += `<div class="event"><strong>Нет задач</strong></div>`;
+    }
+
+    popups.push(
+      `<div id="day-${human}" class="popup"><div class="popup-content">` +
+      `${bodyHTML}` +
+      `<a href="#!" class="close">✕</a></div></div>`
+    );
+  }
+
+  const forumHTML =
+    `<div class="calendar" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;max-width:900px;margin:20px auto;">\n` +
+    `${grid.join('\n')}\n</div>\n\n` +
+    `${popups.join('\n')}\n` +
+    `<a id="!" class="no-scroll-anchor" style="display:none;position:fixed;top:0;left:0"></a>`;
+
+  // Выводим в окно кода и возвращаем строку
+  codeOut.textContent = forumHTML;
+  return forumHTML;
+}
+
+
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+/* ====== ПОДПИСКА НА ДАННЫЕ ИЗ FIREBASE (общая база) ====== */
+db.ref('/calendar').on('value', snap=>{
+  const val = snap.val();
+  if(val && Array.isArray(val) && val.length===25){
+    data = val;
+  }else{
+    // если база пустая — не перезаписываем автоматически, просто показываем дефолт
+    data = structuredClone(DEFAULT_DATA);
+  }
+  // первичный/очередной рендер
+  renderEditor();
+  showStatus('Данные загружены');
+}, err=>{
+  console.error(err);
+  showStatus('Ошибка загрузки данных');
+});
+
+// Стартовые значения селектора и рендера
+daySelect.value = "0";
+renderEditor();
+</script>
+</body>
+</html>
