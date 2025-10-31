@@ -363,10 +363,23 @@ function renderEditor(){
   dayTitle.oninput = e => { data[currentDayIndex].title = e.target.value; };
 
   tasksBox.innerHTML = '';
-  const evs = data[currentDayIndex].events;
-  if (evs.length===0) {
-  for (let n=0; n<4; n++) evs.push({title:"",desc:"",done:false});
+  // гарантируем, что структура дня существует
+if (!data[currentDayIndex]) {
+  data[currentDayIndex] = { title: "", events: [] };
 }
+if (!Array.isArray(data[currentDayIndex].events)) {
+  data[currentDayIndex].events = [];
+}
+
+const evs = data[currentDayIndex].events;
+
+// если задач нет — создаём 4 пустых по умолчанию
+if (evs.length === 0) {
+  for (let n = 0; n < 4; n++) {
+    evs.push({ title: "", desc: "", done: false });
+  }
+}
+
 
 
   evs.forEach((ev, idx)=>{
@@ -473,4 +486,5 @@ if (firebaseOk){
 </script>
 </body>
 </html>
+
 
