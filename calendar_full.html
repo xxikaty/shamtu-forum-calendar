@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>champagne</title>
+<style>
+:root{
+  --bg:#EDF1F3;             /* БАЗОВЫЙ ФОН (меняется через HEX-поле) */
+  --panel:#ffffff;          /* цвет карточек (оставим белым для контраста) */
+  --ink:#2b2a29;
+  --muted:#6f6b5f;
+  --accent:#b59f6b;
+  --ring:#d7c8a0;
+  --radius:14px;
+  --shadow:0 8px 30px rgba(0,0,0,.08);
+
+  /* цвета статусов для календаря на форуме */
+  --active:#E7F3FA; /* есть невыполненные */
+  --done:#F1FAE7;   /* все выполнены */
+  --header:#f5f2ed; /* фон заголовка во всплывашке */
+  --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif: Georgia,"Times New Roman",serif;
+  --sans: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); line-height:1.45;
+}
+.wrapper{max-width:1100px;margin:22px auto;padding:0 16px}
+.header{
+  display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:14px;
+}
+.brand{
+  font-family:var(--serif); font-weight:700; letter-spacing:.2px; font-size:20px;
+}
+.tools{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.tools input[type="text"]{
+  width:130px; padding:8px 10px; border:1px solid var(--ring); border-radius:10px;
+  background:#fff; color:#111; font-family:var(--mono);
+}
+button{
+  appearance:none; cursor:pointer; border-radius:10px; border:1px solid var(--ring);
+  background:linear-gradient(180deg,#fff,#f6f1e3); padding:9px 12px; font-weight:600;
+}
+button.primary{background:linear-gradient(180deg,#c8b07a,#b59f6b); color:#fff; border-color:#a48e5d}
+button.ghost{background:#fff}
+button.danger{background:#fff; color:#8b3c3c; border-color:#e1c3c3}
+button:hover{transform:translateY(-1px); border-color:var(--accent)}
+.status{font-size:12px;color:var(--muted)}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--ring);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:16px;
+}
+
+.section-title{
+  margin:8px 0 12px; font-family:var(--serif); color:#7a6a3f; font-weight:700;
+}
+
+/* ===== КАЛЕНДАРЬ (живой просмотр) ===== */
+.live .calendar{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;                /* расстояние между ячейками меньше */
+  max-width:720px;        /* уменьшает общую ширину сетки */
+  margin:0 auto;
+}
+.live .day{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:70px;             /* фиксированная высота */
+  border-radius:10px;      /* мягкое скругление */
+  border:1px solid #e3e3e3;
+  text-decoration:none;
+  color:#222;
+  font-weight:600;
+  font-size:14px;
+  transition:transform .15s ease;
+  background:#E7F3FA;      /* базовый фон */
+}
+
+.live .calendar{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);  /* 5 прямоугольников в ряд */
+  gap:8px;
+  max-width:720px;
+  margin:0 auto;
+}
+
+.live .day:hover{
+  transform:scale(1.04);
+}
+  
+/* СКРЫТЬ КНОПКИ СОХРАНИТЬ И КОПИРОВАТЬ КОД  */
+  #copyBtn, #downloadBtn {
+  display: none !important;
+}
+
+.popup, .no-scroll-anchor{ display:none; position:fixed; top:0; left:0; }
+.popup:target{
+  display:flex; align-items:center; justify-content:center; position:fixed; inset:0;
+  background:rgba(0,0,0,.45); z-index:9999;
+}
+.popup-content{
+  background:#fff; color:#222; width:min(860px,92vw); max-height:80vh; overflow:auto;
+  border-radius:16px; border:1px solid var(--ring); padding:20px 22px; position:relative; box-shadow:var(--shadow);
+}
+.popup-content h3{ margin:0 0 10px; font-family:var(--serif) }
+.popup-content .event{ padding:8px 10px; border:1px dashed #e0d6be; border-radius:10px; margin:8px 0; background:#fffdf7 }
+.close{
+  position:absolute; top:10px; right:12px; text-decoration:none; font-weight:700;
+  color:#8d836e; background:#faf7f0; border:1px solid var(--ring); padding:6px 10px; border-radius:10px;
+}
+
+/* ===== РЕДАКТОР ===== */
+.editor-grid{
+  display:grid;
+  grid-template-columns:280px 1fr;
+  gap:24px;
+  align-items:start;
+  border-left:4px solid transparent;
+  border-right:4px solid transparent;
+}
+.left-side{
+  border-right:1px solid #e4decf;  /* бежевый разделитель */
+  padding-right:30px;              /* чуть больше воздуха справа */
+  margin-right:8px;                /* и зазор между колонками */
+  box-sizing:border-box;
+}
+
+@media (max-width:980px){
+  .editor-grid{ grid-template-columns:1fr; }
+}
+
+.field{ margin-bottom:12px }
+label{ font-size:13px; color:var(--muted); display:block; margin-bottom:6px }
+select,input[type="text"]{
+  width:100%; padding:10px 12px; border:1px solid var(--ring); border-radius:10px; background:#fff; color:#111;
+}
+.badge{display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#efe7d1; color:#6e5a2a; border:1px solid var(--ring)}
+.task{ display:flex; gap:8px; align-items:center; margin-bottom:8px }
+.task input[type="text"]{ flex:1 }
+.task .del{ min-width:42px }
+hr.sep{ border:none; height:1px; background:#e5dcc7; margin:14px 0 }
+
+pre.code{
+  background:#1c1b19; color:#e6e1cf; padding:14px; border-radius:10px; overflow:auto;
+  font-family:var(--mono); font-size:12.5px; line-height:1.5; border:1px solid #2a281f;
+  max-height:400px; white-space:pre-wrap; word-break:break-word; width:100%; box-sizing:border-box;
+}
+
+#codeOut {
+  display: none !important;
+}
+
+
+#tasksBox {
+  display: block;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scroll-behavior: smooth;
+  flex-shrink: 0; /* добавляем эту строку */
+}
+
+#tasksBox::-webkit-scrollbar { width: 6px; }
+#tasksBox::-webkit-scrollbar-thumb {
+  background: #d8ccb0;
+  border-radius: 10px;
+}
+.tasks-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.tasks-scroll::-webkit-scrollbar-thumb {
+  background: #d8ccb0;
+  border-radius: 10px;
+}
+
+
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- ШАПКА с HEX-цветом -->
+  <div class="header">
+    <div class="brand">♥ champagne ♥</div>
+    <div class="tools">
+      <span class="status" id="status"> </span>
+      <input id="hexInput" type="text" placeholder="#EDF1F3" title="HEX цвет интерфейса"/>
+      <button id="applyColorBtn" class="ghost">🎨 Применить</button>
+      <button id="saveBtn" class="primary">💾 Сохранить</button>
+      <button id="copyBtn" class="ghost">📋 Скопировать код</button>
+      <button id="downloadBtn" class="ghost">⬇️ Скачать HTML</button>
+    </div>
+  </div>
+
+  <!-- ЖИВОЙ КАЛЕНДАРЬ (то, что будет видно на форуме) -->
+  <div class="card live" style="margin-bottom:16px;">
+    <div class="section-title">Календарь </div>
+    <div id="calendarView"></div>
+  </div>
+
+  <!-- РЕДАКТОР: слева форма, справа — готовый код -->
+  <div class="card">
+    <div class="section-title">Редактор</div>
+
+   <div class="editor-grid">
+  <!-- Левая колонка -->
+  <div class="left-side">
+    <div class="field">
+      <label for="daySelect">Выбери день</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="daySelect"></select>
+        <span class="badge" id="taskCount">0 задач</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="dayTitle">Название дня / дата (напр. 02/11)</label>
+      <input id="dayTitle" type="text" placeholder="02/11"/>
+    </div>
+  </div>
+
+  <!-- Правая колонка -->
+  <div class="right-side">
+    <div class="field">
+      <label>События и описания (чекбокс — «выполнено»)</label>
+      <div id="tasksBox"></div>
+
+
+      <button id="addTaskBtn" class="ghost">+ Добавить задачу</button>
+    </div>
+  </div>
+</div>
+
+    
+
+      <div>
+        <div class="section-title">Готовый HTML для форума</div>
+        <pre class="code" id="codeOut"><code>Данные ещё не загружены…</code></pre>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase (compat CDN) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+   
+  const firebaseConfig = {
+    apiKey: "AIzaSyAJu-CECLKqonJxdywNFPDOuoZmvBef6Dc",
+    authDomain: "forum-calendar-shamtu.firebaseapp.com",
+    projectId: "forum-calendar-shamtu",
+    storageBucket: "forum-calendar-shamtu.appspot.com",
+    messagingSenderId: "705851712133",
+    appId: "1:705851712133:web:85ae354826eba745cc7fec",
+    measurementId: "G-KMBVC078HL",
+  databaseURL: "https://forum-calendar-shamtu-default-rtdb.firebaseio.com"
+};
+
+
+/* ========== подключение к Firebase выше ==================== */
+
+let firebaseOk = false, db = null;
+try {
+  if (firebaseConfig && firebaseConfig.apiKey) {
+    firebase.initializeApp(firebaseConfig);
+    if (!firebaseConfig.databaseURL) throw new Error("Нет databaseURL в firebaseConfig");
+    db = firebase.database();
+    firebaseOk = true;
+  }
+} catch (e) {
+  console.warn("Firebase init error:", e);
+}
+
+/* ===== ДАННЫЕ ===== */
+const EMPTY_DAY = () => ({ title:"", events: [] });
+const DEFAULT_DATA = Array.from({length:25}, ()=>EMPTY_DAY());
+
+let data = structuredClone(DEFAULT_DATA);
+let currentDayIndex = 0;
+
+/* ===== DOM ===== */
+const statusEl  = document.getElementById('status');
+const codeOut   = document.getElementById('codeOut');
+const calendarView = document.getElementById('calendarView');
+const daySelect = document.getElementById('daySelect');
+const dayTitle  = document.getElementById('dayTitle');
+const tasksBox  = document.getElementById('tasksBox');
+const taskCount = document.getElementById('taskCount');
+
+for (let i=1;i<=25;i++) daySelect.append(new Option(`День ${i}`, i-1));
+daySelect.value = "0";
+daySelect.addEventListener('change', ()=>{ currentDayIndex = Number(daySelect.value); renderEditor(); });
+
+document.getElementById('addTaskBtn').addEventListener('click', ()=>{
+  data[currentDayIndex].events.push({title:"",desc:"",done:false});
+  renderEditor();
+});
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  try{
+    if (!firebaseOk) throw new Error("Firebase недоступен");
+    await db.ref('/calendar').set(data);
+    showStatus('Сохранено в Firebase');
+  }catch(e){
+    console.warn(e);
+    showStatus('Не сохранилось в Firebase');
+  }
+});
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  const text = buildForumHTML();
+  navigator.clipboard.writeText(text).then(()=>showStatus('Код скопирован'));
+});
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  const text = buildForumHTML();
+  const blob = new Blob([text], {type:"text/html;charset=utf-8"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "calendar_for_forum.html";
+  a.click(); URL.revokeObjectURL(a.href);
+  showStatus('Файл скачан');
+});
+
+/* ===== ТЕМА (HEX фон всего интерфейса) ===== */
+const THEME_KEY = "calendar_theme_hex";
+const hexInput = document.getElementById('hexInput');
+document.getElementById('applyColorBtn').addEventListener('click', ()=>{
+  const val = hexInput.value.trim();
+  if (/^#([0-9a-fA-F]{3}){1,2}$/.test(val)){
+    document.documentElement.style.setProperty('--bg', val);
+    localStorage.setItem(THEME_KEY, val);
+    showStatus('Цвет применён');
+  }else{
+    showStatus('Некорректный HEX');
+  }
+});
+(function initTheme(){
+  const saved = localStorage.getItem(THEME_KEY);
+  hexInput.value = saved || '#EDF1F3';
+  document.documentElement.style.setProperty('--bg', saved || '#EDF1F3');
+})();
+
+/* ===== ВСПОМОГАТЕЛЬНОЕ ===== */
+function showStatus(msg){ statusEl.textContent = '· ' + msg; setTimeout(()=>statusEl.textContent='',2000); }
+function decl(n,one,few,many){const m10=n%10,m100=n%100;return m10===1&&m100!==11?one:(m10>=2&&m10<=4&&(m100<10||m100>=20)?few:many);}
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+/* ===== РЕДАКТОР ===== */
+function renderEditor(){
+  dayTitle.value = data[currentDayIndex].title || "";
+  dayTitle.oninput = e => { data[currentDayIndex].title = e.target.value; };
+
+  tasksBox.innerHTML = '';
+  const evs = data[currentDayIndex].events;
+  if (evs.length===0) {
+  for (let n=0; n<4; n++) evs.push({title:"",desc:"",done:false});
+}
+
+
+  evs.forEach((ev, idx)=>{
+    const row = document.createElement('div'); row.className='task';
+
+    const chk = document.createElement('input'); chk.type='checkbox'; chk.checked=!!ev.done;
+    chk.addEventListener('change', e=>{
+  ev.done = e.target.checked;
+  renderLiveCalendar();   // пересобираем календарь сразу после клика
+});
+
+
+    const t = document.createElement('input'); t.type='text'; t.placeholder='Событие дня'; t.value=ev.title||'';
+    t.addEventListener('input', e=> ev.title = e.target.value);
+
+    const d = document.createElement('input'); d.type='text'; d.placeholder='Описание или задачи дня'; d.value=ev.desc||'';
+    d.addEventListener('input', e=> ev.desc = e.target.value);
+
+    const del = document.createElement('button'); del.className='del danger'; del.textContent='✕'; del.title='Удалить задачу';
+    del.addEventListener('click', ()=>{ data[currentDayIndex].events.splice(idx,1); renderEditor(); });
+
+    row.append(chk,t,d,del);
+    tasksBox.appendChild(row);
+  });
+
+  const n = evs.length;
+  taskCount.textContent = `${n} ${decl(n,'задача','задачи','задач')}`;
+
+  // пересобираем код и верхний календарь
+  buildForumHTML();
+  renderLiveCalendar();
+}
+
+/* ===== Сборка ГОТОВОГО HTML (вставляется на форум) ===== */
+function buildForumHTML(){
+  const grid = [];
+  for(let i=0;i<25;i++){
+    const label = (data[i].title||'').trim() || String(i+1);
+    const evs = data[i].events||[];
+    const allDone = evs.length>0 ? evs.every(e=>!!e.done) : false;
+    const bg = allDone ? 'var(--done,#F1FAE7)' : 'var(--active,#E7F3FA)';
+    grid.push(`<a href="#day-${i+1}" class="day" style="display:flex;align-items:center;justify-content:center;height:70px;background:${bg};border-radius:10px;border:1px solid #e3e3e3;text-decoration:none;color:#222;font-weight:600;font-size:14px;">${escapeHTML(label)}</a>`);
+  }
+
+  const popups = [];
+  for(let i=0;i<25;i++){
+    const human = i+1;
+    const t = (data[i].title||'').trim();
+    const caption = t ? `События ${escapeHTML(t)}` : `События дня ${human}`;
+    const evs = data[i].events||[];
+
+    // заголовок первым блоком
+    let bodyHTML = `<div class="event" style="background:var(--header,#f5f2ed);padding:6px 10px;border-radius:6px;margin-bottom:8px;"><strong>${caption}</strong></div>`;
+    if (evs.length){
+      bodyHTML += evs.map(e=>{
+        const ti = escapeHTML(e.title||'Без названия');
+        const de = escapeHTML(e.desc || '');
+        return e.done
+          ? `<div class="event"><span style="color:#888">✓ <strong>${ti}</strong>${de?` — ${de}`:''}</span></div>`
+          : `<div class="event"><strong>${ti}</strong>${de?` — ${de}`:''}</div>`;
+      }).join('\n');
+    } else {
+      bodyHTML += `<div class="event"><strong>Нет задач</strong></div>`;
+    }
+
+    popups.push(
+`<div id="day-${human}" class="popup"><div class="popup-content">
+${bodyHTML}
+<a href="#!" class="close">✕</a></div></div>`
+    );
+  }
+
+  const forumHTML =
+`<div class="calendar">
+${grid.join('\n')}
+</div>
+
+${popups.join('\n')}
+<a id="!" class="no-scroll-anchor"></a>`;
+
+  codeOut.textContent = forumHTML;
+  return forumHTML;
+}
+
+/* ===== ЖИВОЙ ПРОСМОТР (вверху страницы) ===== */
+function renderLiveCalendar(){
+  calendarView.innerHTML = buildForumHTML();
+}
+
+/* ===== ПОДПИСКА НА ДАННЫЕ И ПЕРВИЧНЫЙ РЕНДЕР ===== */
+if (firebaseOk){
+  db.ref('/calendar').on('value', snap=>{
+    const val = snap.val();
+    data = (val && Array.isArray(val) && val.length===25) ? val : structuredClone(DEFAULT_DATA);
+    renderEditor();
+    showStatus('Данные загружены');
+  }, err=>{
+    console.warn(err); showStatus('Ошибка загрузки из Firebase');
+  });
+} else {
+  renderEditor(); // хотя бы локально показать интерфейс
+  showStatus('Firebase недоступен');
+}
+</script>
+</body>
+</html>
+
