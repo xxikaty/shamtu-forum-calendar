@@ -97,8 +97,11 @@ button:hover{transform:translateY(-1px); border-color:var(--accent)}
 .live .day:hover{
   transform:scale(1.04);
 }
-
-
+  
+/* СКРЫТЬ КНОПКИ СОХРАНИТЬ И КОПИРОВАТЬ КОД  */
+  #copyBtn, #downloadBtn {
+  display: none !important;
+}
 
 .popup, .no-scroll-anchor{ display:none; position:fixed; top:0; left:0; }
 .popup:target{
@@ -443,3 +446,4 @@ if (firebaseOk){
 </script>
 </body>
 </html>
+
